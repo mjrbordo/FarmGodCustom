@@ -1,6 +1,5 @@
 // Hungarian translation provided by =Krumpli=
 
-
 ScriptAPI.register('FarmGod', true, 'Warre', 'nl.tribalwars@coma.innogames.de');
 
 window.FarmGod = {};
@@ -138,9 +137,6 @@ window.FarmGod.Library = (function () {
   const determineNextPage = function (page, $html) {
     let villageLength = ($html.find('#scavenge_mass_screen').length > 0) ? $html.find('tr[id*="scavenge_village"]').length : $html.find('tr.row_a, tr.row_ax, tr.row_b, tr.row_bx').length;
     let navSelect = $html.find('.paged-nav-item').first().closest('td').find('select').first();
-    // Commented out the old version of the code, updated in April 2024
-    // The old version did not count the number of pages in the loot assistant properly when there were more than 15 or so due to the way the UI changes to not show all pages
-    // let navLength = ($html.find('#am_widget_Farm').length > 0) ? $html.find('#plunder_list_nav').first().find('a.paged-nav-item').length : ((navSelect.length > 0) ? navSelect.find('option').length - 1 : $html.find('.paged-nav-item').not('[href*="page=-1"]').length);
     let navLength = ($html.find('#am_widget_Farm').length > 0) ? parseInt($('#plunder_list_nav').first().find('a.paged-nav-item, strong.paged-nav-item')[$('#plunder_list_nav').first().find('a.paged-nav-item, strong.paged-nav-item').length - 1].textContent.replace(/\D/g, '')) - 1 : ((navSelect.length > 0) ? navSelect.find('option').length - 1 : $html.find('.paged-nav-item').not('[href*="page=-1"]').length);
     let pageSize = ($('#mobileHeader').length > 0) ? 10 : parseInt($html.find('input[name="page_size"]').val());
 
@@ -383,18 +379,12 @@ window.FarmGod.Main = (function (Library, Translation) {
           document.querySelector(".optionButton").focus();
         });
 
-
       } else {
         location.href = game_data.link_base_pure + 'am_farm';
       }
     } else {
       UI.ErrorMessage(t.missingFeatures);
     }
-
-    /*
-        if (game_data.market != 'nl') {
-          $.post('https://swtools.be/ScriptStats/insert.php', { script: 'FarmGod', market: game_data.market, world: game_data.world, player: game_data.player.id });
-        }*/
   };
 
   const bindEventHandlers = function () {
@@ -466,21 +456,15 @@ window.FarmGod.Main = (function (Library, Translation) {
                 <tr><div id="FarmGodProgessbar" class="progress-bar live-progress-bar progress-bar-alive" style="width:98%;margin:5px auto;"><div style="background: rgb(146, 194, 0);"></div><span class="label" style="margin-top:0px;"></span></div></tr>
                 <tr><th style="text-align:center;">${t.table.origin}</th><th style="text-align:center;">${t.table.target}</th><th style="text-align:center;">${t.table.fields}</th><th style="text-align:center;">${t.table.farm}</th></tr>`;
 
-    if (!$.isEmptyObject(plan)) {
-      for (let prop in plan) {
-        if (game_data.market == 'nl') {
-          html += `<tr><td colspan="4" style="background: #e7d098;"><input type="button" class="btn switchVillage" data-id="${plan[prop][0].origin.id}" value="${t.table.goTo} ${plan[prop][0].origin.name} (${plan[prop][0].origin.coord})" style="float:right;"></td></tr>`;
-        }
-
-        plan[prop].forEach((val, i) => {
-          html += `<tr class="farmRow row_${(i % 2 == 0) ? 'a' : 'b'}">
-                    <td style="text-align:center;"><a href="${game_data.link_base_pure}info_village&id=${val.origin.id}">${val.origin.name} (${val.origin.coord})</a></td>
-                    <td style="text-align:center;"><a href="${game_data.link_base_pure}info_village&id=${val.target.id}">${val.target.coord}</a></td>
-                    <td style="text-align:center;">${val.fields.toFixed(2)}</td>
-                    <td style="text-align:center;"><a href="#" data-origin="${val.origin.id}" data-target="${val.target.id}" data-template="${val.template.id}" class="farmGod_icon farm_icon farm_icon_${val.template.name}" style="margin:auto;"></a></td>
-                  </tr>`;
-        });
-      }
+    if (plan && plan.length > 0) {
+      plan.forEach((val) => {
+        html += `<tr class="farmRow row_${(val.index % 2 == 0) ? 'a' : 'b'}">
+                  <td style="text-align:center;"><a href="${game_data.link_base_pure}info_village&id=${val.origin.id}">${val.origin.name} (${val.origin.coord})</a></td>
+                  <td style="text-align:center;"><a href="${game_data.link_base_pure}info_village&id=${val.target.id}">${val.target.coord}</a></td>
+                  <td style="text-align:center;">${val.fields.toFixed(2)}</td>
+                  <td style="text-align:center;"><a href="#" data-origin="${val.origin.id}" data-target="${val.target.id}" data-template="${val.template.id}" class="farmGod_icon farm_icon farm_icon_${val.template.name}" style="margin:auto;"></a></td>
+                </tr>`;
+      });
     } else {
       html += `<tr><td colspan="4" style="text-align: center;">${t.table.noFarmsPlanned}</td></tr>`;
     }
@@ -598,7 +582,7 @@ window.FarmGod.Main = (function (Library, Translation) {
     let filterFarms = () => {
       data.farms.farms = Object.fromEntries(Object.entries(data.farms.farms).filter(([key, val]) => {
         return (!val.hasOwnProperty('color')) || ((val.color != 'red') && (val.color != 'red_blue') && (val.color != 'yellow' || losses));
-      }));
+      });
 
       return data;
     };
@@ -613,76 +597,55 @@ window.FarmGod.Main = (function (Library, Translation) {
     });
   };
 
-  
   const createPlanning = function (optionDistance, optionTime, optionMaxloot, data) {
-    let plan = { counter: 0, farms: {} };
+    let plan = { counter: 0, farms: [] };
     let serverTime = Math.round(lib.getCurrentServerTime() / 1000);
 
-    let possibleCombos = [];
+    for (let prop in data.villages) {
+      let orderedFarms = Object.keys(data.farms.farms).map((key) => {
+        return { 'coord': key, 'dis': lib.getDistance(prop, key) };
+      }).sort((a, b) => (a.dis > b.dis) ? 1 : -1);
 
-    for (let origin in data.villages) {
-      for (let target in data.farms.farms) {
-        let distance = lib.getDistance(origin, target);
-        if (distance < optionDistance) {
-          possibleCombos.push({
-            origin,
-            target,
-            distance
+      orderedFarms.forEach((el) => {
+        let farmIndex = data.farms.farms[el.coord];
+        let template_name = (optionMaxloot && farmIndex.hasOwnProperty('max_loot') && farmIndex.max_loot) ? 'b' : 'a';
+        let template = data.farms.templates[template_name];
+        let unitsLeft = lib.subtractArrays(data.villages[prop].units, template.units);
+
+        let distance = lib.getDistance(prop, el.coord);
+        let arrival = Math.round(serverTime + ((distance * template.speed) * 60) + Math.round(plan.counter / 5));
+        let maxTimeDiff = Math.round(optionTime * 60);
+        let timeDiff = true;
+        if (data.commands.hasOwnProperty(el.coord)) {
+          if (!farmIndex.hasOwnProperty('color') && data.commands[el.coord].length > 0) timeDiff = false;
+          data.commands[el.coord].forEach((timestamp) => {
+            if (Math.abs(timestamp - arrival) < maxTimeDiff) timeDiff = false;
           });
+        } else {
+          data.commands[el.coord] = [];
         }
-      }
+
+        if (unitsLeft && timeDiff && (distance < optionDistance)) {
+          plan.counter++;
+          plan.farms.push({
+            'origin': { 'coord': prop, 'name': data.villages[prop].name, 'id': data.villages[prop].id },
+            'target': { 'coord': el.coord, 'id': farmIndex.id },
+            'fields': distance,
+            'template': { 'name': template_name, 'id': template.id },
+            'index': plan.counter - 1
+          });
+
+          data.villages[prop].units = unitsLeft;
+          data.commands[el.coord].push(arrival);
+        }
+      });
     }
 
-    possibleCombos.sort((a, b) => b.distance - a.distance); // Sortowanie od najdalszych
-
-    for (let combo of possibleCombos) {
-      let farmIndex = data.farms.farms[combo.target];
-      let template_name = (optionMaxloot && farmIndex.hasOwnProperty('max_loot') && farmIndex.max_loot) ? 'b' : 'a';
-      let template = data.farms.templates[template_name];
-      let unitsLeft = lib.subtractArrays(data.villages[combo.origin].units, template.units);
-
-      let arrival = Math.round(serverTime + ((combo.distance * template.speed) * 60) + Math.round(plan.counter / 5));
-      let maxTimeDiff = Math.round(optionTime * 60);
-      let timeDiff = true;
-
-      if (data.commands.hasOwnProperty(combo.target)) {
-        if (!farmIndex.hasOwnProperty('color') && data.commands[combo.target].length > 0) timeDiff = false;
-        data.commands[combo.target].forEach((timestamp) => {
-          if (Math.abs(timestamp - arrival) < maxTimeDiff) timeDiff = false;
-        });
-      } else {
-        data.commands[combo.target] = [];
-      }
-
-      if (unitsLeft && timeDiff) {
-        plan.counter++;
-        if (!plan.farms.hasOwnProperty(combo.origin)) plan.farms[combo.origin] = [];
-
-        plan.farms[combo.origin].push({
-          'origin': {
-            'coord': combo.origin,
-            'name': data.villages[combo.origin].name,
-            'id': data.villages[combo.origin].id
-          },
-          'target': {
-            'coord': combo.target,
-            'id': farmIndex.id
-          },
-          'fields': combo.distance,
-          'template': {
-            'name': template_name,
-            'id': template.id
-          }
-        });
-
-        data.villages[combo.origin].units = unitsLeft;
-        data.commands[combo.target].push(arrival);
-      }
-    }
+    // Sort farms by distance
+    plan.farms.sort((a, b) => (a.fields > b.fields) ? 1 : -1);
 
     return plan;
   };
-
 
   const sendFarm = function ($this) {
     let n = Timing.getElapsedTimeSinceLoad();
